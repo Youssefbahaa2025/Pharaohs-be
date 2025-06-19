@@ -10,12 +10,20 @@ const fileFilter = (req, file, cb) => {
   console.log(`[Upload Service] Received file upload with Content-Type: ${req.headers['content-type']}`);
   console.log(`[Upload Service] File: ${file.originalname}, mimetype: ${file.mimetype}, size: ${file.size} bytes`);
   
-  const allowedTypes = ['video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+  // Expanded list of allowed video types
+  const allowedTypes = [
+    // Images
+    'image/jpeg', 'image/png', 'image/jpg', 'image/webp', 
+    // Videos
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 
+    'video/x-ms-wmv', 'video/mpeg', 'video/3gpp'
+  ];
+  
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     console.error(`[Upload Service] Invalid file type: ${file.mimetype}. Allowed types: ${allowedTypes.join(', ')}`);
-    cb(new Error(`Invalid file type: ${file.mimetype}. Only MP4, WebM, JPEG, PNG, JPG, and WebP are allowed.`), false);
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only supported image and video formats are allowed.`), false);
   }
 };
 
@@ -24,8 +32,8 @@ const upload = multer({
   storage,
   fileFilter,
   limits: { 
-    fileSize: 20 * 1024 * 1024, // 20MB limit for web uploads
-    fieldSize: 20 * 1024 * 1024 // 20MB limit for form fields
+    fileSize: 100 * 1024 * 1024, // Increased to 100MB limit for video uploads
+    fieldSize: 100 * 1024 * 1024 // 100MB limit for form fields
   }
 });
 
@@ -35,7 +43,7 @@ upload.handleError = (err, req, res, next) => {
   
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({
-      message: 'File size too large. Maximum allowed size is 20MB.',
+      message: 'File size too large. Maximum allowed size is 100MB.',
       error: 'FILE_TOO_LARGE'
     });
   }

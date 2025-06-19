@@ -43,6 +43,10 @@ exports.uploadBuffer = async (buffer, filename, mimetype, uploadOptions = {}) =>
       throw new Error('Empty file buffer received');
     }
     
+    // Check if this is a video or image
+    const isVideo = mimetype.startsWith('video/');
+    const isImage = mimetype.startsWith('image/');
+    
     // Log upload attempt (without sensitive info)
     console.log(`[Cloudinary] Uploading ${mimetype} file: ${filename}`);
     console.log(`[Cloudinary] Buffer size: ${(buffer.length/1024).toFixed(2)}KB`);
@@ -51,14 +55,34 @@ exports.uploadBuffer = async (buffer, filename, mimetype, uploadOptions = {}) =>
       folder: uploadOptions.folder || 'pharaohs'
     })}`);
     
+    // Set timeout options for large uploads (especially videos)
+    let options = { ...uploadOptions };
+    
+    // If it's a video, use enhanced options
+    if (isVideo) {
+      // Use chunked uploads for videos
+      const chunkSize = 10 * 1024 * 1024; // 10MB chunks
+      options = {
+        ...options,
+        chunk_size: chunkSize,
+        timeout: 300000, // 5 minutes timeout for videos
+      };
+      
+      console.log('[Cloudinary] Using video-specific options: chunked upload');
+    }
+    
     // Convert buffer to base64 string for Cloudinary upload
     const base64String = `data:${mimetype};base64,${buffer.toString('base64')}`;
     
     // Upload to cloudinary
-    const result = await cloudinary.uploader.upload(base64String, uploadOptions);
+    console.log(`[Cloudinary] Starting upload (${isVideo ? 'video' : 'image'})`);
+    const startTime = Date.now();
+    const result = await cloudinary.uploader.upload(base64String, options);
+    const uploadTime = ((Date.now() - startTime) / 1000).toFixed(2);
     
     // Log success (without showing full URLs)
     console.log(`[Cloudinary] Upload successful: ${result.public_id}`);
+    console.log(`[Cloudinary] Upload took: ${uploadTime} seconds`);
     console.log(`[Cloudinary] Resource type: ${result.resource_type}`);
     console.log(`[Cloudinary] Format: ${result.format}`);
     console.log(`[Cloudinary] Size: ${(result.bytes/1024).toFixed(2)}KB`);

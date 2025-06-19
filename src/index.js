@@ -13,6 +13,22 @@ const { getApiUrl } = require('./utils/url.util');
 
 const app = express();
 
+// Increase the request timeout for large file uploads (especially videos)
+// Default timeout is 2 minutes, we're increasing it to 10 minutes (600000ms)
+app.use((req, res, next) => {
+  // Set longer timeout for uploads
+  if (req.path === '/api/player/upload') {
+    console.log('[Server] Setting 10-minute timeout for upload request');
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000);
+  }
+  next();
+});
+
+// Increase body size limits for video uploads
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
 // Swagger definition
 const swaggerOptions = {
   definition: {
