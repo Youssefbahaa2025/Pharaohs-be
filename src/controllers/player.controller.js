@@ -8,6 +8,8 @@ const cloudinaryService = require('../services/cloudinary.service');
 
 exports.uploadMedia = async (req, res) => {
   try {
+    console.log('[Upload Media] Starting media upload process');
+    
     if (req.user.role !== 'player') {
       return res.status(403).json({ message: 'Only players can upload media.' });
     }
@@ -16,14 +18,27 @@ exports.uploadMedia = async (req, res) => {
     const file = req.file;
     const description = req.body.description || '';
 
+    // Check if file is present
     if (!file) {
+      console.error('[Upload Media] No file received');
       return res.status(400).json({ message: 'File is required' });
+    }
+    
+    console.log(`[Upload Media] File received: ${file.originalname}, size: ${(file.size/1024).toFixed(2)}KB`);
+    
+    // Check Cloudinary configuration
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error('[Upload Media] Cloudinary configuration missing');
+      return res.status(500).json({ message: 'Server configuration error' });
     }
 
     const type = file.mimetype.startsWith('image/') ? 'image' : 'video';
+    console.log(`[Upload Media] Processing ${type} upload`);
     
     // Upload to Cloudinary directly from buffer
     const resourceType = type === 'image' ? 'image' : 'video';
+    console.log(`[Upload Media] Starting Cloudinary upload with resource type: ${resourceType}`);
+    
     const cloudinaryResult = await cloudinaryService.uploadBuffer(
       file.buffer, 
       file.originalname, 
@@ -35,11 +50,15 @@ exports.uploadMedia = async (req, res) => {
       }
     );
     
+    console.log(`[Upload Media] Cloudinary upload successful, URL: ${cloudinaryResult.secure_url}`);
+    
     // Store the Cloudinary URL and public_id in the database
     await db.query(
       'INSERT INTO videos (player_id, url, description, type, created_at, public_id) VALUES (?, ?, ?, ?, NOW(), ?)',
       [playerId, cloudinaryResult.secure_url, description, type, cloudinaryResult.public_id]
     );
+    
+    console.log(`[Upload Media] Database entry created successfully`);
     
     res.status(201).json({
       message: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`,
@@ -53,7 +72,26 @@ exports.uploadMedia = async (req, res) => {
     });
   } catch (err) {
     console.error('[Upload Media Error]', err);
-    res.status(500).json({ message: 'Server error during upload' });
+    
+    // Provide more detailed error messages
+    if (err.message && err.message.includes('payload too large')) {
+      return res.status(413).json({ 
+        message: 'File size too large. Maximum allowed size is 20MB.',
+        error: 'PAYLOAD_TOO_LARGE' 
+      });
+    }
+    
+    if (err.message && err.message.includes('cloudinary')) {
+      return res.status(500).json({ 
+        message: 'Error uploading to cloud storage',
+        error: 'CLOUDINARY_ERROR'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error during upload',
+      error: err.message || 'UNKNOWN_ERROR'
+    });
   }
 };
 

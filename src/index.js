@@ -123,10 +123,11 @@ app.use('/uploads/videos', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 });
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase JSON payload size limit to 50MB
+app.use(express.json({ limit: '50mb' }));
+// Increase URL-encoded payload size limit to 50MB
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// No need for local file serving as all files are now stored in Cloudinary
 
 // Add fallback handlers for old image/video paths
 // This redirects any requests for local files to default Cloudinary images with proper CORS headers

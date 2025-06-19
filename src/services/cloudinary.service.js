@@ -169,15 +169,29 @@ const uploadBuffer = async (buffer, originalname, mimetype, options = {}) => {
   };
 
   try {
+    // Validate buffer exists and has content
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Empty file buffer received');
+    }
+    
+    console.log(`[Cloudinary] Uploading ${mimetype} file, buffer size: ${(buffer.length/1024).toFixed(2)}KB`);
+    
     // Convert buffer to base64 string for Cloudinary upload
     const base64String = `data:${mimetype};base64,${buffer.toString('base64')}`;
     
+    // Log upload attempt with options
+    console.log(`[Cloudinary] Uploading to folder: ${uploadOptions.folder}, resource_type: ${uploadOptions.resource_type}`);
+    
     // Upload to cloudinary
     const result = await cloudinary.uploader.upload(base64String, uploadOptions);
+    console.log(`[Cloudinary] Upload successful, public_id: ${result.public_id}, URL: ${result.secure_url}`);
     return result;
   } catch (error) {
     console.error('Cloudinary buffer upload failed:', error);
-    throw error;
+    // Add more context to the error
+    const enhancedError = new Error(`Cloudinary upload error: ${error.message}`);
+    enhancedError.originalError = error;
+    throw enhancedError;
   }
 };
 

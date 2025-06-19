@@ -314,7 +314,32 @@ router.get('/videos', auth, role(['player', 'scout']), controller.getVideos);
  *       500:
  *         description: Server error during upload
  */
-router.post('/upload', auth, role('player'), upload.single('file'), controller.uploadMedia);
+// Custom error handler for multer errors
+const handleUploadErrors = (err, req, res, next) => {
+  console.error('[Upload Error]', err);
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ 
+      message: 'File size too large. Maximum allowed size is 20MB.',
+      error: 'FILE_TOO_LARGE'
+    });
+  }
+  if (err.message && err.message.includes('Invalid file type')) {
+    return res.status(415).json({ 
+      message: err.message,
+      error: 'INVALID_FILE_TYPE'
+    });
+  }
+  return next(err);
+};
+
+router.post('/upload', auth, role('player'), (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return handleUploadErrors(err, req, res, next);
+    }
+    next();
+  });
+}, controller.uploadMedia);
 
 /**
  * @swagger
