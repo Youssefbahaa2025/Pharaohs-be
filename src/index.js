@@ -173,6 +173,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Root route for healthchecks
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Pharaohs API is running' });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/player', playerRoutes);
 app.use('/api/scout', scoutRoutes);
