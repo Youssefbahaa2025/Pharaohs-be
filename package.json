@@ -8,7 +8,7 @@
     "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:create-notifications": "node src/db/create-notifications-table.js",
-    "db:update-cloudinary": "node src/db/update-cloudinary-tables.js",
+    "db:update-cloudinary": "node src/db/update-cloudinary-tables.js"
   },
   "keywords": [],
   "author": "",
