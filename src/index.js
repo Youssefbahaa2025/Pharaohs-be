@@ -123,11 +123,23 @@ app.use('/uploads/videos', (req, res, next) => {
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 });
-// Increase JSON payload size limit to 50MB
-app.use(express.json({ limit: '50mb' }));
-// Increase URL-encoded payload size limit to 50MB
+
+// IMPORTANT: Apply URL encoded middleware first, which will handle form data
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Then apply JSON middleware with a check for content-type
+// This prevents JSON parser from trying to parse multipart form data
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  // Only parse as JSON if content-type includes 'application/json'
+  if (contentType.includes('application/json')) {
+    express.json({ limit: '50mb' })(req, res, next);
+  } else {
+    next();
+  }
+});
+
+// No need for local file serving as all files are now stored in Cloudinary
 
 // Add fallback handlers for old image/video paths
 // This redirects any requests for local files to default Cloudinary images with proper CORS headers

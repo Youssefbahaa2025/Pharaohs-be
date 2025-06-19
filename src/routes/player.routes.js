@@ -332,11 +332,24 @@ const handleUploadErrors = (err, req, res, next) => {
   return next(err);
 };
 
+// Special media upload handling to avoid JSON parsing conflicts
 router.post('/upload', auth, role('player'), (req, res, next) => {
+  console.log('[Upload Route] Content-Type:', req.headers['content-type']);
+  
+  // Process multipart form data with explicit error handling
   upload.single('file')(req, res, (err) => {
     if (err) {
+      console.error('[Upload Route] Multer error:', err.message);
       return handleUploadErrors(err, req, res, next);
     }
+    
+    // Validate file was uploaded
+    if (!req.file) {
+      console.error('[Upload Route] No file received');
+      return res.status(400).json({ message: 'File is required' });
+    }
+    
+    console.log('[Upload Route] File received successfully:', req.file.originalname);
     next();
   });
 }, controller.uploadMedia);
