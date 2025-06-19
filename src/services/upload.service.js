@@ -5,15 +5,16 @@ const path = require('path');
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  // Log the request content type
+  // Enhanced logging for debugging
+  console.log(`[Upload Service] Request headers:`, JSON.stringify(req.headers));
   console.log(`[Upload Service] Received file upload with Content-Type: ${req.headers['content-type']}`);
-  console.log(`[Upload Service] File: ${file.originalname}, mimetype: ${file.mimetype}`);
+  console.log(`[Upload Service] File: ${file.originalname}, mimetype: ${file.mimetype}, size: ${file.size} bytes`);
   
   const allowedTypes = ['video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    console.error(`[Upload Service] Invalid file type: ${file.mimetype}`);
+    console.error(`[Upload Service] Invalid file type: ${file.mimetype}. Allowed types: ${allowedTypes.join(', ')}`);
     cb(new Error(`Invalid file type: ${file.mimetype}. Only MP4, WebM, JPEG, PNG, JPG, and WebP are allowed.`), false);
   }
 };

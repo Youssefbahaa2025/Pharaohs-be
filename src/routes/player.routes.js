@@ -319,6 +319,24 @@ router.post('/upload', auth, role('player'), (req, res, next) => {
   console.log('[Upload Route] Received upload request');
   console.log('[Upload Route] Content-Type:', req.headers['content-type']);
   
+  // Check if content type is JSON and reject it
+  if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+    console.error('[Upload Route] Received JSON content type, expected multipart/form-data');
+    return res.status(400).json({ 
+      message: 'Invalid content type. File uploads must use multipart/form-data', 
+      error: 'INVALID_CONTENT_TYPE' 
+    });
+  }
+  
+  // Check if content type is multipart/form-data
+  if (!req.headers['content-type'] || !req.headers['content-type'].includes('multipart/form-data')) {
+    console.error('[Upload Route] Content-Type is not multipart/form-data:', req.headers['content-type']);
+    return res.status(400).json({ 
+      message: 'Invalid content type. Must use multipart/form-data for file uploads', 
+      error: 'INVALID_CONTENT_TYPE' 
+    });
+  }
+  
   // Check if multer is properly configured
   if (!upload || !upload.single) {
     console.error('[Upload Route] Multer not properly configured');
@@ -355,6 +373,7 @@ router.post('/upload', auth, role('player'), (req, res, next) => {
       // Validate file was received
       if (!req.file) {
         console.error('[Upload Route] No file received in request');
+        console.error('[Upload Route] Request body:', JSON.stringify(req.body));
         return res.status(400).json({ message: 'No file was uploaded' });
       }
       
