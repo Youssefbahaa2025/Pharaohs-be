@@ -104,9 +104,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // Configure CORS with more specific settings
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+  origin: ['https://pharaohs-front-end.vercel.app', 'http://localhost:4200'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
   credentials: true,
   exposedHeaders: ['Content-Length', 'Content-Type']
 }));
