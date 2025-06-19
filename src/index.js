@@ -124,20 +124,22 @@ app.use('/uploads/videos', (req, res, next) => {
   next();
 });
 
-// IMPORTANT: Apply URL encoded middleware first, which will handle form data
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Then apply JSON middleware with a check for content-type
-// This prevents JSON parser from trying to parse multipart form data
+// Configure middleware based on route and content-type
+// DO NOT use express.json() middleware for the upload route
 app.use((req, res, next) => {
-  const contentType = req.headers['content-type'] || '';
-  // Only parse as JSON if content-type includes 'application/json'
-  if (contentType.includes('application/json')) {
-    express.json({ limit: '50mb' })(req, res, next);
-  } else {
-    next();
+  // Skip JSON parsing for known upload routes to prevent multipart form data issues
+  if (req.path === '/api/player/upload') {
+    console.log('[Middleware] Skipping JSON parsing for upload route');
+    return next();
   }
+  
+  // For all other routes, apply JSON parsing
+  console.log(`[Middleware] Applying JSON parsing for ${req.method} ${req.path}`);
+  express.json({ limit: '50mb' })(req, res, next);
 });
+
+// Apply URL-encoded parsing for all routes
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // No need for local file serving as all files are now stored in Cloudinary
 

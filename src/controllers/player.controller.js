@@ -8,9 +8,11 @@ const cloudinaryService = require('../services/cloudinary.service');
 
 exports.uploadMedia = async (req, res) => {
   try {
-    console.log('[Upload Media] Starting media upload process');
+    console.log('[Controller:uploadMedia] Starting media upload process');
     
+    // Ensure user has player role
     if (req.user.role !== 'player') {
+      console.error('[Controller:uploadMedia] Non-player role attempted upload:', req.user.role);
       return res.status(403).json({ message: 'Only players can upload media.' });
     }
 
@@ -18,27 +20,33 @@ exports.uploadMedia = async (req, res) => {
     const file = req.file;
     const description = req.body.description || '';
 
-    // Check if file is present
+    // Double check file is present
     if (!file) {
-      console.error('[Upload Media] No file received');
+      console.error('[Controller:uploadMedia] No file in request');
       return res.status(400).json({ message: 'File is required' });
     }
     
-    console.log(`[Upload Media] File received: ${file.originalname}, size: ${(file.size/1024).toFixed(2)}KB`);
+    console.log(`[Controller:uploadMedia] Processing file: ${file.originalname}, size: ${(file.size/1024).toFixed(2)}KB, type: ${file.mimetype}`);
     
-    // Check Cloudinary configuration
+    // Verify Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      console.error('[Upload Media] Cloudinary configuration missing');
-      return res.status(500).json({ message: 'Server configuration error' });
+      console.error('[Controller:uploadMedia] Missing Cloudinary credentials');
+      return res.status(500).json({ 
+        message: 'Server configuration error: Missing cloud storage credentials',
+        error: 'CLOUDINARY_CONFIG_MISSING'
+      });
     }
 
+    // Determine content type
     const type = file.mimetype.startsWith('image/') ? 'image' : 'video';
-    console.log(`[Upload Media] Processing ${type} upload`);
+    console.log(`[Controller:uploadMedia] Identified content type: ${type}`);
     
-    // Upload to Cloudinary directly from buffer
+    // Set resource type for Cloudinary
     const resourceType = type === 'image' ? 'image' : 'video';
-    console.log(`[Upload Media] Starting Cloudinary upload with resource type: ${resourceType}`);
+    console.log(`[Controller:uploadMedia] Using Cloudinary resource type: ${resourceType}`);
     
+    // Upload to Cloudinary
+    console.log(`[Controller:uploadMedia] Uploading to Cloudinary: ${file.originalname}`);
     const cloudinaryResult = await cloudinaryService.uploadBuffer(
       file.buffer, 
       file.originalname, 
@@ -46,20 +54,31 @@ exports.uploadMedia = async (req, res) => {
       {
         resource_type: resourceType,
         folder: `pharaohs/${type}s`, // Organize by type (images/videos)
-        public_id: `player_${playerId}_${Date.now()}` // Ensure unique IDs
+        public_id: `player_${playerId}_${Date.now()}`, // Ensure unique IDs
+        transformation: type === 'video' ? [
+          { quality: 'auto' },
+          { fetch_format: 'auto' }
+        ] : [
+          { quality: 'auto' },
+          { fetch_format: 'auto' },
+          { width: 1200, crop: 'limit' } // Reasonable limit for images
+        ]
       }
     );
     
-    console.log(`[Upload Media] Cloudinary upload successful, URL: ${cloudinaryResult.secure_url}`);
+    console.log(`[Controller:uploadMedia] Cloudinary upload successful: ${cloudinaryResult.secure_url}`);
+    console.log(`[Controller:uploadMedia] File size: ${(cloudinaryResult.bytes/1024).toFixed(2)}KB`);
     
-    // Store the Cloudinary URL and public_id in the database
+    // Store in database
+    console.log(`[Controller:uploadMedia] Saving to database for player: ${playerId}`);
     await db.query(
       'INSERT INTO videos (player_id, url, description, type, created_at, public_id) VALUES (?, ?, ?, ?, NOW(), ?)',
       [playerId, cloudinaryResult.secure_url, description, type, cloudinaryResult.public_id]
     );
     
-    console.log(`[Upload Media] Database entry created successfully`);
+    console.log(`[Controller:uploadMedia] Database entry created successfully`);
     
+    // Return success response
     res.status(201).json({
       message: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`,
       url: cloudinaryResult.secure_url,
@@ -71,7 +90,7 @@ exports.uploadMedia = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[Upload Media Error]', err);
+    console.error('[Controller:uploadMedia] Error:', err);
     
     // Provide more detailed error messages
     if (err.message && err.message.includes('payload too large')) {
@@ -88,6 +107,7 @@ exports.uploadMedia = async (req, res) => {
       });
     }
     
+    // Default server error
     res.status(500).json({ 
       message: 'Server error during upload',
       error: err.message || 'UNKNOWN_ERROR'

@@ -1,5 +1,4 @@
 const cloudinary = require('cloudinary').v2;
-require('dotenv').config();
 
 // Configure Cloudinary
 cloudinary.config({
@@ -9,237 +8,128 @@ cloudinary.config({
   secure: true
 });
 
-/**
- * Upload file to Cloudinary
- * @param {string} filePath - Local path to the file
- * @param {Object} options - Upload options
- * @returns {Promise} - Cloudinary upload response
- */
-const uploadFile = async (filePath, options = {}) => {
-  // Default options for optimization and folder structure
-  const defaults = {
-    resource_type: 'auto', // auto-detect whether it's an image or video
-    folder: 'pharaohs', // Base folder for all uploads
-    use_filename: false,
-    unique_filename: true,
-    overwrite: true,
-    transformation: [
-      { quality: 'auto:good', fetch_format: 'auto' } // Automatic quality and format optimization
-    ]
-  };
-
-  // For videos, add options for compression and optimization
-  if (options.resource_type === 'video') {
-    // Enhanced video compression settings
-    defaults.transformation = [
-      { 
-        quality: 'auto:low', 
-        fetch_format: 'mp4',
-        video_codec: 'auto',
-        audio_codec: 'aac',
-        bit_rate: '1500k',  // Lower bitrate for better compression
-        fps: '24'           // Reduce frame rate
-      }
-    ];
-    
-    // Add video optimization hints
-    defaults.eager = [
-      // Lower resolution version for mobile
-      { 
-        width: 640, 
-        height: 360, 
-        crop: 'limit', 
-        fetch_format: 'mp4',
-        quality: 'auto:low' 
-      }
-    ];
-  }
-
-  // For images, use appropriate optimization settings
-  if (options.resource_type === 'image') {
-    defaults.transformation = [
-      { 
-        width: 1200, 
-        crop: 'limit', 
-        quality: 'auto:low', 
-        fetch_format: 'webp',  // WebP for better compression
-        dpr: 'auto'            // Handle device pixel ratio automatically
-      }
-    ];
-    
-    // Add eager transformations for common sizes
-    defaults.eager = [
-      // Thumbnail
-      { width: 300, height: 300, crop: 'fill', gravity: 'auto', quality: 'auto:low', fetch_format: 'webp' },
-      // Medium size
-      { width: 800, crop: 'limit', quality: 'auto:low', fetch_format: 'webp' }
-    ];
-  }
-
-  // Merge defaults with provided options
-  const uploadOptions = { ...defaults, ...options };
-
-  try {
-    // Upload to cloudinary
-    const result = await cloudinary.uploader.upload(filePath, uploadOptions);
-    return result;
-  } catch (error) {
-    console.error('Cloudinary upload failed:', error);
-    throw error;
-  }
+// Check if Cloudinary is properly configured
+const isConfigured = () => {
+  return (
+    process.env.CLOUDINARY_CLOUD_NAME && 
+    process.env.CLOUDINARY_API_KEY && 
+    process.env.CLOUDINARY_API_SECRET
+  );
 };
 
+// Log Cloudinary config status without exposing sensitive details
+console.log(`[Cloudinary] Configuration status: ${isConfigured() ? 'OK' : 'MISSING'}`);
+
+// Export direct functions instead of creating a module object
+// This allows direct imports like: const { uploadBuffer } = require('./cloudinary.service');
+
 /**
- * Upload file buffer directly to Cloudinary without saving to disk
- * @param {Buffer} buffer - File buffer
- * @param {String} originalname - Original file name
- * @param {String} mimetype - File mime type
- * @param {Object} options - Upload options
- * @returns {Promise} - Cloudinary upload response
+ * Upload a file buffer to Cloudinary
+ * @param {Buffer} buffer - The file buffer to upload
+ * @param {string} filename - Original filename for reference
+ * @param {string} mimetype - The MIME type of the file 
+ * @param {Object} uploadOptions - Cloudinary upload options
+ * @returns {Promise<Object>} Cloudinary upload response
  */
-const uploadBuffer = async (buffer, originalname, mimetype, options = {}) => {
-  // Default options for optimization and folder structure
-  const defaults = {
-    resource_type: 'auto', // auto-detect whether it's an image or video
-    folder: 'pharaohs', // Base folder for all uploads
-    use_filename: false,
-    unique_filename: true,
-    overwrite: true,
-    transformation: [
-      { quality: 'auto:good', fetch_format: 'auto' } // Automatic quality and format optimization
-    ]
-  };
-
-  // Determine resource type from mimetype
-  const resourceType = mimetype.startsWith('image/') ? 'image' : 'video';
-  
-  // For videos, add options for compression and optimization
-  if (resourceType === 'video') {
-    // Enhanced video compression settings
-    defaults.transformation = [
-      { 
-        quality: 'auto:low', 
-        fetch_format: 'mp4',
-        video_codec: 'auto',
-        audio_codec: 'aac',
-        bit_rate: '1500k',  // Lower bitrate for better compression
-        fps: '24'           // Reduce frame rate
-      }
-    ];
-    
-    // Add video optimization hints
-    defaults.eager = [
-      // Lower resolution version for mobile
-      { 
-        width: 640, 
-        height: 360, 
-        crop: 'limit', 
-        fetch_format: 'mp4',
-        quality: 'auto:low' 
-      }
-    ];
-  }
-
-  // For images, use appropriate optimization settings
-  if (resourceType === 'image') {
-    defaults.transformation = [
-      { 
-        width: 1200, 
-        crop: 'limit', 
-        quality: 'auto:low', 
-        fetch_format: 'webp',  // WebP for better compression
-        dpr: 'auto'            // Handle device pixel ratio automatically
-      }
-    ];
-    
-    // Add eager transformations for common sizes
-    defaults.eager = [
-      // Thumbnail
-      { width: 300, height: 300, crop: 'fill', gravity: 'auto', quality: 'auto:low', fetch_format: 'webp' },
-      // Medium size
-      { width: 800, crop: 'limit', quality: 'auto:low', fetch_format: 'webp' }
-    ];
-  }
-
-  // Merge defaults with provided options
-  const uploadOptions = { 
-    ...defaults, 
-    ...options,
-    resource_type: options.resource_type || resourceType
-  };
-
+exports.uploadBuffer = async (buffer, filename, mimetype, uploadOptions = {}) => {
   try {
+    // Check if Cloudinary is configured
+    if (!isConfigured()) {
+      throw new Error('Cloudinary credentials not configured');
+    }
+
     // Validate buffer exists and has content
     if (!buffer || buffer.length === 0) {
       throw new Error('Empty file buffer received');
     }
     
-    console.log(`[Cloudinary] Uploading ${mimetype} file, buffer size: ${(buffer.length/1024).toFixed(2)}KB`);
+    // Log upload attempt (without sensitive info)
+    console.log(`[Cloudinary] Uploading ${mimetype} file: ${filename}`);
+    console.log(`[Cloudinary] Buffer size: ${(buffer.length/1024).toFixed(2)}KB`);
+    console.log(`[Cloudinary] Upload options: ${JSON.stringify({
+      resource_type: uploadOptions.resource_type || 'auto',
+      folder: uploadOptions.folder || 'pharaohs'
+    })}`);
     
     // Convert buffer to base64 string for Cloudinary upload
     const base64String = `data:${mimetype};base64,${buffer.toString('base64')}`;
     
-    // Log upload attempt with options
-    console.log(`[Cloudinary] Uploading to folder: ${uploadOptions.folder}, resource_type: ${uploadOptions.resource_type}`);
-    
     // Upload to cloudinary
     const result = await cloudinary.uploader.upload(base64String, uploadOptions);
-    console.log(`[Cloudinary] Upload successful, public_id: ${result.public_id}, URL: ${result.secure_url}`);
+    
+    // Log success (without showing full URLs)
+    console.log(`[Cloudinary] Upload successful: ${result.public_id}`);
+    console.log(`[Cloudinary] Resource type: ${result.resource_type}`);
+    console.log(`[Cloudinary] Format: ${result.format}`);
+    console.log(`[Cloudinary] Size: ${(result.bytes/1024).toFixed(2)}KB`);
+    
     return result;
   } catch (error) {
-    console.error('Cloudinary buffer upload failed:', error);
-    // Add more context to the error
-    const enhancedError = new Error(`Cloudinary upload error: ${error.message}`);
-    enhancedError.originalError = error;
-    throw enhancedError;
+    // Enhanced error logging
+    console.error(`[Cloudinary] Upload failed for ${filename || 'unknown file'}`);
+    console.error(`[Cloudinary] Error type: ${error.name}`);
+    console.error(`[Cloudinary] Error message: ${error.message}`);
+    
+    // If it's a Cloudinary API error, log more details
+    if (error.http_code) {
+      console.error(`[Cloudinary] HTTP code: ${error.http_code}`);
+      console.error(`[Cloudinary] Error code: ${error.error?.code || 'unknown'}`);
+    }
+    
+    // Rethrow with better context
+    throw new Error(`Cloudinary upload failed: ${error.message}`);
   }
 };
 
 /**
- * Delete file from Cloudinary
- * @param {string} publicId - Cloudinary public ID of the file
- * @param {Object} options - Delete options
- * @returns {Promise} - Cloudinary delete response
+ * Delete a file from Cloudinary using its public_id
+ * @param {string} publicId - The public_id of the file to delete
+ * @param {string} resourceType - Resource type (image, video, etc.)
+ * @returns {Promise<Object>} Cloudinary deletion response
  */
-const deleteFile = async (publicId, options = {}) => {
-  const defaults = {
-    resource_type: 'auto',
-    invalidate: true
-  };
-
-  const deleteOptions = { ...defaults, ...options };
-
+exports.deleteResource = async (publicId, resourceType = 'image') => {
   try {
-    const result = await cloudinary.uploader.destroy(publicId, deleteOptions);
+    if (!isConfigured()) {
+      throw new Error('Cloudinary credentials not configured');
+    }
+    
+    if (!publicId) {
+      throw new Error('No public_id provided for deletion');
+    }
+    
+    console.log(`[Cloudinary] Attempting to delete ${resourceType}: ${publicId}`);
+    
+    const result = await cloudinary.uploader.destroy(publicId, { 
+      resource_type: resourceType 
+    });
+    
+    console.log(`[Cloudinary] Delete result for ${publicId}: ${result.result}`);
     return result;
   } catch (error) {
-    console.error('Cloudinary delete failed:', error);
-    throw error;
+    console.error(`[Cloudinary] Delete failed for ${publicId}`);
+    console.error(`[Cloudinary] Error: ${error.message}`);
+    throw new Error(`Cloudinary delete failed: ${error.message}`);
   }
 };
 
 /**
- * Generate Cloudinary URL with transformation options
- * @param {string} publicId - Cloudinary public ID of the file
- * @param {Object} options - Transformation options
- * @returns {string} - Transformed Cloudinary URL
+ * Get a Cloudinary URL for a given public_id
+ * @param {string} publicId - The public_id of the resource
+ * @param {Object} options - URL generation options 
+ * @returns {string} The generated Cloudinary URL
  */
-const getUrl = (publicId, options = {}) => {
-  const defaults = {
+exports.getUrl = (publicId, options = {}) => {
+  if (!publicId) return null;
+  
+  const defaultOptions = {
     secure: true,
-    transformation: [
-      { fetch_format: 'auto', quality: 'auto' }
-    ]
+    quality: 'auto',
+    fetch_format: 'auto'
   };
-
-  const urlOptions = { ...defaults, ...options };
+  
+  const urlOptions = { ...defaultOptions, ...options };
   return cloudinary.url(publicId, urlOptions);
 };
 
-module.exports = {
-  uploadFile,
-  uploadBuffer,
-  deleteFile,
-  getUrl,
-  cloudinary
-};
+// Export the cloudinary instance
+exports.cloudinary = cloudinary;

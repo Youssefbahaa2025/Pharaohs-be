@@ -314,45 +314,60 @@ router.get('/videos', auth, role(['player', 'scout']), controller.getVideos);
  *       500:
  *         description: Server error during upload
  */
-// Custom error handler for multer errors
-const handleUploadErrors = (err, req, res, next) => {
-  console.error('[Upload Error]', err);
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ 
-      message: 'File size too large. Maximum allowed size is 20MB.',
-      error: 'FILE_TOO_LARGE'
-    });
-  }
-  if (err.message && err.message.includes('Invalid file type')) {
-    return res.status(415).json({ 
-      message: err.message,
-      error: 'INVALID_FILE_TYPE'
-    });
-  }
-  return next(err);
-};
-
 // Special media upload handling to avoid JSON parsing conflicts
 router.post('/upload', auth, role('player'), (req, res, next) => {
+  console.log('[Upload Route] Received upload request');
   console.log('[Upload Route] Content-Type:', req.headers['content-type']);
   
-  // Process multipart form data with explicit error handling
-  upload.single('file')(req, res, (err) => {
-    if (err) {
-      console.error('[Upload Route] Multer error:', err.message);
-      return handleUploadErrors(err, req, res, next);
-    }
-    
-    // Validate file was uploaded
-    if (!req.file) {
-      console.error('[Upload Route] No file received');
-      return res.status(400).json({ message: 'File is required' });
-    }
-    
-    console.log('[Upload Route] File received successfully:', req.file.originalname);
-    next();
-  });
-}, controller.uploadMedia);
+  // Check if multer is properly configured
+  if (!upload || !upload.single) {
+    console.error('[Upload Route] Multer not properly configured');
+    return res.status(500).json({ message: 'Server configuration error' });
+  }
+  
+  // Skip JSON parsing and handle as multipart directly
+  try {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('[Upload Route] Multer error:', err.message);
+        
+        // Handle specific multer errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({ 
+            message: 'File size too large. Maximum allowed size is 20MB.',
+            error: 'FILE_TOO_LARGE'
+          });
+        }
+        
+        if (err.message && err.message.includes('Invalid file type')) {
+          return res.status(415).json({ 
+            message: err.message,
+            error: 'INVALID_FILE_TYPE'
+          });
+        }
+        
+        return res.status(400).json({ 
+          message: 'File upload error', 
+          error: err.message 
+        });
+      }
+      
+      // Validate file was received
+      if (!req.file) {
+        console.error('[Upload Route] No file received in request');
+        return res.status(400).json({ message: 'No file was uploaded' });
+      }
+      
+      console.log('[Upload Route] File received successfully:', req.file.originalname);
+      
+      // Continue to controller
+      controller.uploadMedia(req, res, next);
+    });
+  } catch (error) {
+    console.error('[Upload Route] Critical error:', error);
+    res.status(500).json({ message: 'Server error during upload', error: error.message });
+  }
+});
 
 /**
  * @swagger
